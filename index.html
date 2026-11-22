@@ -72,6 +72,54 @@
       }
     }
 
+
+    /* Jeux éducatifs de la crèche */
+    .games-section { background:#f3f8ff; }
+    .game-panel {
+      max-width:650px; margin:25px auto; padding:22px;
+      background:#fff; border-radius:18px;
+      box-shadow:0 5px 22px rgba(18,57,104,.10);
+      text-align:center;
+    }
+    .game-tabs {
+      display:flex; flex-wrap:wrap; justify-content:center;
+      gap:9px; margin-bottom:22px;
+    }
+    .game-tabs button,.game-next,.game-answer {
+      border:0; border-radius:12px; padding:12px 17px;
+      font-size:16px; font-weight:600; cursor:pointer;
+    }
+    .game-tabs button { background:#e8f0ff; color:#174b86; }
+    .game-tabs button.active,.game-next {
+      background:#1769aa; color:white;
+    }
+    #game-question { font-size:21px; margin:18px 0; }
+    #game-target {
+      display:block; font-size:42px; font-weight:bold;
+      margin:15px auto; min-height:55px;
+    }
+    .game-options {
+      display:flex; flex-wrap:wrap; justify-content:center;
+      gap:12px; margin:20px 0;
+    }
+    .game-answer {
+      min-width:75px; background:#edf4ff; color:#174b86;
+      border:2px solid #d5e5fa;
+    }
+    .game-answer:disabled { cursor:default; opacity:.8; }
+    .game-answer.correct { background:#d8f5df; border-color:#36a852; }
+    .game-answer.wrong { background:#ffe0e0; border-color:#df5555; }
+    #game-feedback { min-height:30px; font-weight:bold; margin:12px; }
+    #game-score { font-weight:bold; color:#1769aa; margin:15px; }
+    .game-color-dot {
+      display:inline-block; width:55px; height:55px;
+      border-radius:50%; vertical-align:middle;
+      border:2px solid #ddd;
+    }
+    @media(max-width:520px) {
+      .game-panel { padding:15px; }
+      .game-tabs button,.game-answer { font-size:14px; padding:10px 13px; }
+    }
 </style>
 </head>
 <body>
@@ -170,6 +218,40 @@
             Développer l'autonomie, la confiance en soi et le plaisir d'apprendre.
           </p>
         </article>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="games-section" id="creche-games">
+    <div class="container">
+      <div class="section-title">
+        <h2 data-fr="Jeux éducatifs amusants" data-ar="ألعاب تعليمية ممتعة">Jeux éducatifs amusants</h2>
+        <p data-fr="Apprendre en jouant, en arabe et en français !"
+           data-ar="نتعلم ونمرح باللغتين العربية والفرنسية!">
+          Apprendre en jouant, en arabe et en français !
+        </p>
+      </div>
+      <div class="game-panel">
+        <div class="game-tabs">
+          <button type="button" class="active" data-game="letters"
+            data-fr="🔤 Les lettres" data-ar="🔤 الحروف">🔤 Les lettres</button>
+          <button type="button" data-game="numbers"
+            data-fr="🔢 Les nombres" data-ar="🔢 الأرقام">🔢 Les nombres</button>
+          <button type="button" data-game="colors"
+            data-fr="🎨 Les couleurs" data-ar="🎨 الألوان">🎨 Les couleurs</button>
+        </div>
+        <div id="game-question" aria-live="polite"></div>
+        <div id="game-target"></div>
+        <div class="game-options" id="game-options"></div>
+        <div id="game-feedback" aria-live="polite"></div>
+        <div id="game-score" data-fr="Score : 0" data-ar="النقاط: 0">Score : 0</div>
+        <div id="game-stars" aria-live="polite" style="font-size:25px;margin:10px"></div>
+        <div id="game-reward" aria-live="polite" style="font-weight:bold;color:#d18b00;min-height:28px"></div>
+        <button type="button" class="game-next" id="game-next"
+          data-fr="Question suivante ➜" data-ar="السؤال التالي ➜">
+          Question suivante ➜
+        </button>
       </div>
     </div>
   </section>
@@ -513,6 +595,185 @@ transform:translateX(-50%);">
     card.style.transitionDelay = (index % 3) * 100 + 'ms';
     observer.observe(card);
   });
+})();
+</script>
+
+
+<script>
+(function () {
+  const question = document.getElementById('game-question');
+  if (!question) return;
+
+  const targetBox = document.getElementById('game-target');
+  const optionsBox = document.getElementById('game-options');
+  const feedback = document.getElementById('game-feedback');
+  const scoreBox = document.getElementById('game-score');
+  const starsBox = document.getElementById('game-stars');
+  const rewardBox = document.getElementById('game-reward');
+  let audioContext = null;
+  const nextButton = document.getElementById('game-next');
+
+  let activeGame = 'letters';
+  let score = 0;
+  let currentAnswer = '';
+  let answered = false;
+
+  const letters = {
+    fr: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+    ar: 'ابتثجحخدذرزسشصضطظعغفقكلمنهوي'.split('')
+  };
+
+  const colors = [
+    {fr:'Rouge', ar:'أحمر', hex:'#e53935'},
+    {fr:'Bleu', ar:'أزرق', hex:'#1976d2'},
+    {fr:'Jaune', ar:'أصفر', hex:'#fdd835'},
+    {fr:'Vert', ar:'أخضر', hex:'#43a047'},
+    {fr:'Orange', ar:'برتقالي', hex:'#fb8c00'},
+    {fr:'Rose', ar:'وردي', hex:'#ec407a'}
+  ];
+
+  function lang() {
+    return document.documentElement.lang === 'ar' ||
+      document.documentElement.dir === 'rtl' ? 'ar' : 'fr';
+  }
+
+  function shuffle(items) {
+    return [...items].sort(() => Math.random() - 0.5);
+  }
+
+  function showScore() {
+    scoreBox.textContent = lang() === 'ar'
+      ? 'النقاط: ' + score
+      : 'Score : ' + score;
+    starsBox.textContent = '⭐'.repeat(Math.min(score, 10));
+    if (score > 10) starsBox.textContent += ' +' + (score - 10);
+  }
+
+  function playSound(reward) {
+    try {
+      const AudioClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioClass) return;
+
+      if (!audioContext) audioContext = new AudioClass();
+      if (audioContext.state === 'suspended') audioContext.resume();
+
+      const notes = reward
+        ? [523, 659, 784, 1047]
+        : [659, 880];
+
+      notes.forEach((frequency, index) => {
+        const start = audioContext.currentTime + index * 0.13;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.exponentialRampToValueAtTime(0.12, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 0.19);
+      });
+    } catch (error) {
+      // Le jeu continue même si le navigateur bloque le son.
+    }
+  }
+
+  function renderQuestion() {
+    const l = lang();
+    answered = false;
+    feedback.textContent = '';
+    optionsBox.innerHTML = '';
+    targetBox.innerHTML = '';
+
+    let choices = [];
+    let prompt = '';
+
+    if (activeGame === 'letters') {
+      const pool = letters[l];
+      currentAnswer = pool[Math.floor(Math.random() * pool.length)];
+      prompt = l === 'ar' ? 'اختر الحرف الظاهر:' : 'Choisis la lettre affichée :';
+      targetBox.textContent = currentAnswer;
+      choices = shuffle([currentAnswer, ...shuffle(pool.filter(x => x !== currentAnswer)).slice(0, 3)]);
+    } else if (activeGame === 'numbers') {
+      const n = Math.floor(Math.random() * 5) + 1;
+      currentAnswer = String(n);
+      prompt = l === 'ar' ? 'عدّ التفاحات واختر الرقم الصحيح:' : 'Compte les pommes et choisis le bon chiffre :';
+      targetBox.textContent = '🍎 '.repeat(n);
+      choices = shuffle([String(n), ...shuffle(['1','2','3','4','5'].filter(x => x !== String(n))).slice(0, 3)]);
+    } else {
+      const chosen = colors[Math.floor(Math.random() * colors.length)];
+      currentAnswer = chosen[l];
+      prompt = l === 'ar' ? 'اختر اسم هذا اللون:' : 'Choisis le nom de cette couleur :';
+      targetBox.innerHTML = '<span class="game-color-dot" style="background:' + chosen.hex + '"></span>';
+      choices = shuffle([chosen, ...shuffle(colors.filter(x => x !== chosen)).slice(0, 3)])
+        .map(x => x[l]);
+    }
+
+    question.textContent = prompt;
+    choices.forEach(choice => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'game-answer';
+      button.textContent = choice;
+      button.addEventListener('click', () => checkAnswer(button, choice));
+      optionsBox.appendChild(button);
+    });
+    showScore();
+  }
+
+  function checkAnswer(button, choice) {
+    if (answered) return;
+    answered = true;
+    const l = lang();
+
+    if (choice === currentAnswer) {
+      score++;
+      playSound(score % 5 === 0);
+      feedback.textContent = l === 'ar' ? 'أحسنت! إجابة صحيحة ⭐' : 'Bravo ! Bonne réponse ⭐';
+      feedback.style.color = '#23823b';
+      button.classList.add('correct');
+
+      if (score % 5 === 0) {
+        rewardBox.textContent = l === 'ar'
+          ? '🏆 رائع! لقد جمعت 5 إجابات صحيحة!'
+          : '🏆 Bravo ! Tu as réussi 5 bonnes réponses !';
+      }
+    } else {
+      feedback.textContent = l === 'ar'
+        ? 'حاول مرة أخرى في السؤال القادم 😊'
+        : 'Essaie encore à la prochaine question 😊';
+      feedback.style.color = '#c0392b';
+      button.classList.add('wrong');
+      [...optionsBox.children].forEach(b => {
+        if (b.textContent === currentAnswer) b.classList.add('correct');
+      });
+    }
+
+    [...optionsBox.children].forEach(b => b.disabled = true);
+    showScore();
+  }
+
+  document.querySelectorAll('#creche-games [data-game]').forEach(button => {
+    button.addEventListener('click', () => {
+      activeGame = button.dataset.game;
+      document.querySelectorAll('#creche-games [data-game]').forEach(b => b.classList.remove('active'));
+      button.classList.add('active');
+      renderQuestion();
+    });
+  });
+
+  nextButton.addEventListener('click', renderQuestion);
+
+  const observer = new MutationObserver(renderQuestion);
+  observer.observe(document.documentElement, {
+    attributes:true, attributeFilter:['lang','dir']
+  });
+
+  renderQuestion();
 })();
 </script>
 
